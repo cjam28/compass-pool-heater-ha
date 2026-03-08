@@ -1,0 +1,27 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Compass Pool Heater",
+        "description": "Log in with your Compass app account.",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "scan_interval": "Poll interval (seconds)"
+        }
+      },
+      "device": {
+        "title": "Select Device",
+        "description": "Multiple heaters found on your account. Select which one to add.",
+        "data": {
+          "thermostat_key": "Heater"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid email or password.",
+      "cannot_connect": "Could not connect to the Compass cloud service.",
+      "no_devices": "No heaters found on this account."
+    }
+  }
+}

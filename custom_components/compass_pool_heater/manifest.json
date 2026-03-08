@@ -1,0 +1,12 @@
+{
+  "domain": "compass_pool_heater",
+  "name": "Compass Pool Heater",
+  "codeowners": ["@christoalto"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/christoalto/compass-pool-heater-ha",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/christoalto/compass-pool-heater-ha/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}
