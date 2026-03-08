@@ -24,41 +24,48 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.CLIMATE, Platform.NUMBER, Platform.SENSOR, Platform.SWITCH]
 
-BLUEPRINT_FILENAME = "pump_coordination.yaml"
+BLUEPRINT_FILENAMES = [
+    "pump_coordination.yaml",
+    "pool_smart_schedule.yaml",
+]
 BLUEPRINT_DIR = "compass_pool_heater"
 
 
 def _install_blueprints(hass: HomeAssistant) -> None:
     """Copy bundled blueprints into the HA blueprints directory."""
-    source = Path(__file__).parent / "blueprints" / BLUEPRINT_FILENAME
-    if not source.is_file():
-        return
-
+    source_dir = Path(__file__).parent / "blueprints"
     dest_dir = Path(hass.config.path("blueprints", "automation", BLUEPRINT_DIR))
-    dest = dest_dir / BLUEPRINT_FILENAME
+    installed: list[str] = []
 
-    if dest.is_file():
-        if source.read_bytes() == dest.read_bytes():
-            return
-        _LOGGER.info("Updating Compass pool heater blueprint: %s", BLUEPRINT_FILENAME)
-    else:
-        _LOGGER.info("Installing Compass pool heater blueprint: %s", BLUEPRINT_FILENAME)
+    for filename in BLUEPRINT_FILENAMES:
+        source = source_dir / filename
+        if not source.is_file():
+            continue
 
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, dest)
+        dest = dest_dir / filename
+        if dest.is_file() and source.read_bytes() == dest.read_bytes():
+            continue
 
-    async_create(
-        hass,
-        (
-            "The **Compass Pool Heater** integration installed the "
-            "**Pump Coordination** automation blueprint.\n\n"
-            "Go to **Settings → Automations & Scenes → Blueprints** to create "
-            "an automation from it. You will need to configure your pump's "
-            "start/stop actions and state entity."
-        ),
-        title="Compass Pool Heater – Blueprint Installed",
-        notification_id=f"{DOMAIN}_blueprint_installed",
-    )
+        action = "Updating" if dest.is_file() else "Installing"
+        _LOGGER.info("%s Compass pool heater blueprint: %s", action, filename)
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        installed.append(filename)
+
+    if installed:
+        names = ", ".join(f.replace(".yaml", "").replace("_", " ").title() for f in installed)
+        async_create(
+            hass,
+            (
+                f"The **Compass Pool Heater** integration installed or updated "
+                f"automation blueprints: **{names}**.\n\n"
+                "Go to **Settings → Automations & Scenes → Blueprints** to create "
+                "automations from them."
+            ),
+            title="Compass Pool Heater – Blueprints Updated",
+            notification_id=f"{DOMAIN}_blueprint_installed",
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

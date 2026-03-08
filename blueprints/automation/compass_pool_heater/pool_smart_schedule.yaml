@@ -1,0 +1,407 @@
+blueprint:
+  name: "Compass Pool Heater – Smart Schedule"
+  description: >
+    All-in-one pool pump scheduling and heater temperature management.
+    Occupancy sensors are optional — without them the blueprint operates
+    as a pure time-based pump schedule.
+
+
+    PUMP SCHEDULE — Runs the pump at configurable times with configurable
+    speeds. Default: low speed overnight (10 PM – 6 AM) and default speed
+    midday (11 AM – 2 PM).
+
+
+    POOL OCCUPANCY OVERRIDE (optional) — When the pool area is occupied
+    the pump switches to max speed for best filtration during use. When
+    guests leave, the pump returns to whatever speed the current schedule
+    window calls for (or turns off if outside a window). Leave the Pool
+    Area Occupancy Sensor blank to disable.
+
+
+    HEATER GUEST / VACANT MODE (optional) — When the house is occupied
+    the heater is set to the guest temperature (default 86 °F). After no
+    occupancy is detected for a configurable period (default 12 hours) the
+    heater drops to the vacant temperature (default 78 °F). A dashboard
+    toggle (input_boolean) lets you override manually even without
+    occupancy sensors. Leave House Occupancy Sensor blank to use manual
+    toggle only; leave both the toggle and sensor blank to disable
+    temperature management entirely.
+
+
+    Works with any pump controller — njsPC, Pentair ScreenLogic, Hayward
+    OmniLogic, a simple relay switch, or anything else in Home Assistant.
+
+
+    PREREQUISITE: If using guest/vacant temperature mode, create one
+    helper — input_boolean for Guest Mode (Settings → Helpers → Toggle).
+  domain: automation
+  source_url: https://github.com/cjam28/compass-pool-heater-ha/blob/main/blueprints/automation/compass_pool_heater/pool_smart_schedule.yaml
+  input:
+    # ── Required: Entities ──────────────────────────────────────────────
+    heater_climate:
+      name: Pool Heater
+      description: The Compass pool heater climate entity.
+      selector:
+        entity:
+          domain: climate
+
+    guest_mode_toggle:
+      name: Guest Mode Toggle (Optional)
+      description: >
+        An input_boolean you create as a helper. It is turned on/off
+        automatically by occupancy and can also be toggled from the
+        dashboard to manually switch between guest and vacant temperatures.
+        Leave blank to disable heater temperature management.
+      default: ""
+      selector:
+        entity:
+          domain: input_boolean
+
+    house_occupancy:
+      name: House Occupancy Sensor (Optional)
+      description: >
+        Binary sensor (or group) that indicates whether the house is
+        occupied. When it turns on, guest mode activates. Leave blank to
+        control guest/vacant mode only via the dashboard toggle, or leave
+        both this and Guest Mode Toggle blank to disable temperature
+        management entirely.
+      default: ""
+      selector:
+        entity:
+          domain: binary_sensor
+
+    pool_occupancy:
+      name: Pool Area Occupancy Sensor (Optional)
+      description: >
+        Binary sensor (or group) for the pool area. When on, the pump
+        runs at max speed. Leave blank to disable pool occupancy override
+        (pump follows schedule only).
+      default: ""
+      selector:
+        entity:
+          domain:
+            - binary_sensor
+            - input_boolean
+
+    # ── Required: Pump Actions ──────────────────────────────────────────
+    pump_low_action:
+      name: Pump Low Speed Action
+      description: >
+        Action(s) to set the pump to low speed. For njsPC, call your
+        speed script with target: low. For a single-speed pump, use
+        switch.turn_on.
+      selector:
+        action:
+
+    pump_default_action:
+      name: Pump Default Speed Action
+      description: >
+        Action(s) to set the pump to default/medium speed. For a
+        single-speed pump this can be the same as low.
+      selector:
+        action:
+
+    pump_max_action:
+      name: Pump Max Speed Action (Optional)
+      description: >
+        Action(s) to set the pump to max speed. Only used when Pool Area
+        Occupancy Sensor is configured. You can leave the default if you
+        have no pool occupancy sensor.
+      default: []
+      selector:
+        action:
+
+    pump_off_action:
+      name: Pump Off Action
+      description: >
+        Action(s) to turn the pump off. For njsPC, call your
+        all-speeds-off script. For a single-speed pump, use
+        switch.turn_off.
+      selector:
+        action:
+
+    # ── Defaults: Temperatures ──────────────────────────────────────────
+    guest_temperature:
+      name: Guest Temperature (°F)
+      description: Heater setpoint when the house is occupied.
+      default: 86
+      selector:
+        number:
+          min: 50
+          max: 104
+          step: 1
+          unit_of_measurement: "°F"
+
+    vacant_temperature:
+      name: Vacant Temperature (°F)
+      description: >
+        Heater setpoint when the house has been unoccupied for the
+        configured delay period.
+      default: 78
+      selector:
+        number:
+          min: 50
+          max: 104
+          step: 1
+          unit_of_measurement: "°F"
+
+    # ── Defaults: Timing ────────────────────────────────────────────────
+    vacant_delay_hours:
+      name: Vacant Mode Delay (hours)
+      description: >
+        Hours of no house occupancy before switching to vacant
+        temperature. Only used when House Occupancy Sensor is configured.
+      default: 12
+      selector:
+        number:
+          min: 1
+          max: 48
+          step: 1
+          unit_of_measurement: hours
+
+    pool_cooldown_minutes:
+      name: Pool Cooldown (minutes)
+      description: >
+        Minutes after the pool area clears before dropping from max
+        speed back to the scheduled speed. Only used when Pool Area
+        Occupancy Sensor is configured.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 30
+          step: 1
+          unit_of_measurement: minutes
+
+    night_start:
+      name: Night Pump Start
+      description: >
+        Time to start overnight low-speed filtration.
+      default: "22:00:00"
+      selector:
+        time:
+
+    night_end:
+      name: Night Pump End
+      description: >
+        Time to stop overnight filtration.
+      default: "06:00:00"
+      selector:
+        time:
+
+    midday_start:
+      name: Midday Pump Start
+      description: >
+        Time to start midday default-speed circulation for chemical
+        distribution and surface skimming.
+      default: "11:00:00"
+      selector:
+        time:
+
+    midday_end:
+      name: Midday Pump End
+      description: >
+        Time to stop midday circulation.
+      default: "14:00:00"
+      selector:
+        time:
+
+mode: queued
+max: 5
+max_exceeded: silent
+
+trigger_variables:
+  house_occ_var: !input house_occupancy
+  pool_occ_var: !input pool_occupancy
+  guest_toggle_var: !input guest_mode_toggle
+
+variables:
+  heater_eid: !input heater_climate
+  guest_toggle_eid: !input guest_mode_toggle
+  house_occ_eid: !input house_occupancy
+  pool_occ_eid: !input pool_occupancy
+  guest_temp: !input guest_temperature
+  vacant_temp: !input vacant_temperature
+
+trigger:
+  # ── Occupancy (only fire when entity is configured) ─────────────────
+  - platform: template
+    value_template: >-
+      {{ house_occ_var not in ['', none] and is_state(house_occ_var, 'on') }}
+    id: house_occupied
+
+  - platform: template
+    value_template: >-
+      {{ house_occ_var not in ['', none] and is_state(house_occ_var, 'off') }}
+    for:
+      hours: !input vacant_delay_hours
+    id: house_vacant
+
+  - platform: template
+    value_template: >-
+      {{ guest_toggle_var not in ['', none] and is_state(guest_toggle_var, 'on') }}
+    id: guest_mode_on
+
+  - platform: template
+    value_template: >-
+      {{ guest_toggle_var not in ['', none] and is_state(guest_toggle_var, 'off') }}
+    id: guest_mode_off
+
+  - platform: template
+    value_template: >-
+      {{ pool_occ_var not in ['', none] and is_state(pool_occ_var, 'on') }}
+    id: pool_occupied
+
+  - platform: template
+    value_template: >-
+      {{ pool_occ_var not in ['', none] and is_state(pool_occ_var, 'off') }}
+    for:
+      minutes: !input pool_cooldown_minutes
+    id: pool_cleared
+
+  # ── Schedule ──────────────────────────────────────────────────────────
+  - platform: time
+    at: !input night_start
+    id: night_start
+
+  - platform: time
+    at: !input night_end
+    id: night_end
+
+  - platform: time
+    at: !input midday_start
+    id: midday_start
+
+  - platform: time
+    at: !input midday_end
+    id: midday_end
+
+action:
+  - choose:
+      # ── House occupied → guest mode on ────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: house_occupied
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ guest_toggle_eid not in ['', none]
+                 and is_state(guest_toggle_eid, 'off') }}
+          - action: input_boolean.turn_on
+            target:
+              entity_id: "{{ guest_toggle_eid }}"
+
+      # ── House vacant N hours → guest mode off ─────────────────────────
+      - conditions:
+          - condition: trigger
+            id: house_vacant
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ guest_toggle_eid not in ['', none] }}
+          - action: input_boolean.turn_off
+            target:
+              entity_id: "{{ guest_toggle_eid }}"
+
+      # ── Guest mode turned on → set guest temperature ──────────────────
+      - conditions:
+          - condition: trigger
+            id: guest_mode_on
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input heater_climate
+            data:
+              hvac_mode: heat
+          - action: climate.set_temperature
+            target:
+              entity_id: !input heater_climate
+            data:
+              temperature: "{{ guest_temp | int }}"
+
+      # ── Guest mode turned off → set vacant temperature ────────────────
+      - conditions:
+          - condition: trigger
+            id: guest_mode_off
+        sequence:
+          - action: climate.set_temperature
+            target:
+              entity_id: !input heater_climate
+            data:
+              temperature: "{{ vacant_temp | int }}"
+
+      # ── Pool occupied → pump max ──────────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: pool_occupied
+        sequence:
+          - choose: []
+            default: !input pump_max_action
+
+      # ── Pool cleared → return to schedule speed ───────────────────────
+      - conditions:
+          - condition: trigger
+            id: pool_cleared
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: time
+                    after: !input night_start
+                    before: !input night_end
+                sequence:
+                  - choose: []
+                    default: !input pump_low_action
+              - conditions:
+                  - condition: time
+                    after: !input midday_start
+                    before: !input midday_end
+                sequence:
+                  - choose: []
+                    default: !input pump_default_action
+            default:
+              - choose: []
+                default: !input pump_off_action
+
+      # ── Night start → pump low ────────────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: night_start
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ pool_occ_eid in ['', none] or states(pool_occ_eid) != 'on' }}
+          - choose: []
+            default: !input pump_low_action
+
+      # ── Night end → pump off ──────────────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: night_end
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ pool_occ_eid in ['', none] or states(pool_occ_eid) != 'on' }}
+          - choose: []
+            default: !input pump_off_action
+
+      # ── Midday start → pump default ───────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: midday_start
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ pool_occ_eid in ['', none] or states(pool_occ_eid) != 'on' }}
+          - choose: []
+            default: !input pump_default_action
+
+      # ── Midday end → pump off ─────────────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: midday_end
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ pool_occ_eid in ['', none] or states(pool_occ_eid) != 'on' }}
+          - choose: []
+            default: !input pump_off_action
