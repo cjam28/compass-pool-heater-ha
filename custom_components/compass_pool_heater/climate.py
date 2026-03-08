@@ -18,7 +18,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import CompassApi, CompassApiError, HeaterState
-from .const import CONF_THERMOSTAT_KEY, DOMAIN, MODE_OFF, MODE_POOL, MODE_SPA
+from .const import CONF_THERMOSTAT_KEY, DOMAIN, FAULT_CODES, MODE_OFF, MODE_POOL, MODE_SPA
 from .coordinator import CompassCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -32,7 +32,6 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Compass Pool Heater climate entity."""
     data = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([CompassPoolHeaterClimate(data["coordinator"], data["api"], entry)])
 
@@ -60,7 +59,8 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
         super().__init__(coordinator)
         self._api = api
         self._entry = entry
-        self._attr_unique_id = f"compass_{entry.data[CONF_THERMOSTAT_KEY]}"
+        self._key = entry.data[CONF_THERMOSTAT_KEY]
+        self._attr_unique_id = f"compass_{self._key}"
 
     @property
     def _state(self) -> HeaterState | None:
@@ -70,7 +70,7 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
     def device_info(self) -> dict[str, Any]:
         name = self._state.name if self._state else "Compass Pool Heater"
         return {
-            "identifiers": {(DOMAIN, self._entry.data[CONF_THERMOSTAT_KEY])},
+            "identifiers": {(DOMAIN, self._key)},
             "name": name,
             "manufacturer": "Gulfstream / ICM Controls",
             "model": "Compass WiFi Heat Pump",
@@ -92,7 +92,10 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
     def hvac_action(self) -> HVACAction | None:
         if self._state is None or self._state.mode == MODE_OFF:
             return HVACAction.OFF
-        if self._state.current_temp < self._active_setpoint:
+        sp = self._active_setpoint
+        if sp == 0:
+            return HVACAction.OFF
+        if self._state.current_temp < sp:
             return HVACAction.HEATING
         return HVACAction.IDLE
 
@@ -110,7 +113,8 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
     def target_temperature(self) -> float | None:
         if self._state is None:
             return None
-        return self._active_setpoint
+        sp = self._active_setpoint
+        return sp if sp > 0 else None
 
     @property
     def _active_setpoint(self) -> int:
@@ -124,20 +128,20 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
     def extra_state_attributes(self) -> dict[str, Any]:
         if self._state is None:
             return {}
-        attrs: dict[str, Any] = {
-            "pool_setpoint": self._state.pool_setpoint,
-            "spa_setpoint": self._state.spa_setpoint,
-            "heater_mode_raw": self._state.mode,
-            "fault_code": self._state.fault_code,
-            "thermostat_key": self._entry.data[CONF_THERMOSTAT_KEY],
-            "last_online": self._state.last_online,
-            "deadband": self._state.deadband,
-            "calibration": self._state.calibration,
-            "vacation_hold": bool(self._state.vacation_hold),
+        s = self._state
+        pool_display = f"{s.pool_setpoint}°F" if s.pool_setpoint > 0 else "Off"
+        spa_display = f"{s.spa_setpoint}°F" if s.spa_setpoint > 0 else "Off"
+        fault_text = FAULT_CODES.get(s.fault_code, f"Code {s.fault_code}")
+        return {
+            "pool_setpoint": pool_display,
+            "spa_setpoint": spa_display,
+            "water_temp": s.current_temp,
+            "coil_temp": s.coil_temp,
+            "fault": fault_text,
+            "fault_active": s.fault_code != 0,
+            "last_online": s.last_online,
+            "thermostat_key": self._key,
         }
-        if self._state.fault_code:
-            attrs["fault_active"] = True
-        return attrs
 
     async def _send_command(
         self,
@@ -149,11 +153,15 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
             _LOGGER.warning("Cannot send command: state unknown")
             return
 
+        final_pool = pool_sp if pool_sp is not None else self._state.pool_setpoint
+        final_spa = spa_sp if spa_sp is not None else self._state.spa_setpoint
+        final_mode = mode if mode is not None else self._state.mode
+
         try:
             await self._api.set_state(
-                pool_setpoint=pool_sp if pool_sp is not None else self._state.pool_setpoint,
-                spa_setpoint=spa_sp if spa_sp is not None else self._state.spa_setpoint,
-                mode=mode if mode is not None else self._state.mode,
+                pool_setpoint=final_pool,
+                spa_setpoint=final_spa,
+                mode=final_mode,
             )
         except CompassApiError as err:
             _LOGGER.error("Failed to send command: %s", err)
@@ -173,7 +181,7 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
-        temp = int(temp)
+        temp = int(max(self._attr_min_temp, min(self._attr_max_temp, temp)))
 
         if self._state and self._state.mode == MODE_SPA:
             await self._send_command(spa_sp=temp)

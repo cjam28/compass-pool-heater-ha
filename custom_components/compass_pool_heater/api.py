@@ -46,39 +46,37 @@ class DeviceInfo:
 class HeaterState:
     """Parsed heater state from the API."""
 
+    # Core status
     online: bool
-    mode: int
-    pool_setpoint: int
-    spa_setpoint: int
-    current_temp: int
-    max_setpoint: int
-    min_setpoint: int
-    fault_code: int
+    mode: int  # 0=off, 1=pool, 4=spa
+    pool_setpoint: int  # 0=off, 50-104°F
+    spa_setpoint: int  # 0=off, 50-104°F
+    current_temp: int  # RMT - water temperature °F
+    coil_temp: int  # GEN15 - coil temperature °F
+    fault_code: int  # CHGF - 0=OK, 8=No Flow
     name: str
     description: str = ""
     last_online: str = ""
-    deadband: int = 0
-    heat_temp_sensitivity: int = 0
-    calibration: int = 0
-    defrost_guard: int = 0
-    defrost_duration: int = 0
-    defrost_lock: int = 0
-    aux_heat_delta: int = 0
-    vacation_hold: int = 0
+
+    # Limits
+    max_setpoint: int = 104  # MXH
+    min_setpoint: int = 50  # MNH
+
+    # Settings - mapped to app System Configuration
+    pool_cool: bool = False  # DF1 - #11 Pool Cool
+    pool_heat_cool: bool = False  # DF2 - #12 Pool Heat/Cool
+    pool_heat_cool_deadband: int = 3  # DFU - #13 (range 2-8)
+    spa_timer_hours: int = 0  # DF3 - #15 Spa Timer hours (0-20)
+    spa_timer_minutes: int = 0  # STOF - #15 Spa Timer minutes (0,15,30,45)
+    defrost_mode: int = 1  # DFL - #17 (0=Reverse Cycle, 1=Air Defrost)
+    defrost_end: int = 42  # AXD - #18 (range 42-50°F)
+    calibration: int = 0  # CAL - sensor calibration
+    deadband: int = 10  # DB
+    heat_temp_sensitivity: int = 10  # HTS
+    vacation_hold: bool = False  # VH
+    lock: bool = False  # LKO - #2 Lock
+
     raw: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class AlertConfig:
-    """Alert thresholds and notification settings."""
-
-    high_temp_value: int = 0
-    high_temp_enabled: bool = False
-    low_temp_value: int = 0
-    low_temp_enabled: bool = False
-    notify_email: bool = False
-    notify_mobile: bool = False
-    notify_text: bool = False
 
 
 class CompassApiError(Exception):
@@ -153,9 +151,7 @@ class CompassApi:
                 data = await resp.json()
 
             if data.get("result") != "success":
-                raise CompassAuthError(
-                    data.get("message", "Login failed")
-                )
+                raise CompassAuthError(data.get("message", "Login failed"))
 
             token = data.get("token", "")
             if not token:
@@ -206,20 +202,25 @@ class CompassApi:
             pool_setpoint=cs.get("RSV1", 0),
             spa_setpoint=cs.get("RSV2", 0),
             current_temp=cs.get("RMT", 0),
-            max_setpoint=cs.get("MXH", 104),
-            min_setpoint=cs.get("MNH", 50),
-            fault_code=cs.get("FLT", 0),
+            coil_temp=cs.get("GEN15", 0),
+            fault_code=cs.get("CHGF", 0),
             name=detail.get("name", "Pool Heater"),
             description=detail.get("description", ""),
             last_online=detail.get("last_online", ""),
-            deadband=cs.get("DB", 0),
-            heat_temp_sensitivity=cs.get("HTS", 0),
+            max_setpoint=cs.get("MXH", 104),
+            min_setpoint=cs.get("MNH", 50),
+            pool_cool=bool(cs.get("DF1", 0)),
+            pool_heat_cool=bool(cs.get("DF2", 0)),
+            pool_heat_cool_deadband=cs.get("DFU", 3),
+            spa_timer_hours=cs.get("DF3", 0),
+            spa_timer_minutes=cs.get("STOF", 0),
+            defrost_mode=cs.get("DFL", 1),
+            defrost_end=cs.get("AXD", 42),
             calibration=cs.get("CAL", 0),
-            defrost_guard=cs.get("DFG", 0),
-            defrost_duration=cs.get("DFU", 0),
-            defrost_lock=cs.get("DFL", 0),
-            aux_heat_delta=cs.get("AXD", 0),
-            vacation_hold=cs.get("VH", 0),
+            deadband=cs.get("DB", 10),
+            heat_temp_sensitivity=cs.get("HTS", 10),
+            vacation_hold=bool(cs.get("VH", 0)),
+            lock=bool(cs.get("LKO", 0)),
             raw=cs,
         )
 
@@ -229,7 +230,11 @@ class CompassApi:
         spa_setpoint: int,
         mode: int,
     ) -> None:
-        """Send a control command to the heater."""
+        """Send a control command to the heater.
+
+        Setpoints: 0=Off, or 50-104°F.
+        Mode: 0=Off, 1=Pool Heat, 4=Spa Heat.
+        """
         if mode not in (MODE_OFF, MODE_POOL, MODE_SPA):
             raise ValueError(f"Invalid mode: {mode}")
 
@@ -251,38 +256,6 @@ class CompassApi:
         """Set one or more configuration fields on the heater."""
         await self._call({"action": "thermostatSetFields", "fields": fields})
         _LOGGER.debug("Set fields: %s", fields)
-
-    async def get_alerts(self) -> AlertConfig:
-        """Get alert configuration."""
-        alerts_data = await self._call({"action": "thermostatGetAlerts"})
-        method_data = await self._call({"action": "thermostatGetAlertMethod"})
-
-        config = AlertConfig(
-            notify_email=bool(method_data.get("email")),
-            notify_mobile=bool(method_data.get("mobile")),
-            notify_text=bool(method_data.get("text")),
-        )
-
-        for alert in alerts_data.get("alerts", []):
-            if alert["alert_type"] == "HIGH_TEMP":
-                config.high_temp_value = int(alert["nValue"])
-                config.high_temp_enabled = alert["enabled"] == "1"
-            elif alert["alert_type"] == "LOW_TEMP":
-                config.low_temp_value = int(alert["nValue"])
-                config.low_temp_enabled = alert["enabled"] == "1"
-
-        return config
-
-    async def set_alert(self, alert_type: str, value: int, enabled: bool) -> None:
-        """Set a temperature alert threshold."""
-        await self._call(
-            {
-                "action": "thermostatSetAlert",
-                "alertType": alert_type,
-                "value": value,
-                "enabled": enabled,
-            }
-        )
 
     async def test_connection(self) -> bool:
         """Test if credentials are valid."""

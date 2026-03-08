@@ -1,121 +1,129 @@
-# Compass Pool Heater - Home Assistant Integration
+# Compass Pool Heater – Home Assistant Integration
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz/)
 
-Home Assistant integration for **Gulfstream**, **Aqua Comfort**, **Built Right**, and other pool heat pumps controlled by the **Compass WiFi** app (by ICM Controls).
+A Home Assistant custom integration for **Gulfstream**, **Aqua Comfort**, **Built Right**, and other pool/spa heat pumps that use the **ICM Controls Compass WiFi** module and the **Compass** mobile app.
 
 ## Features
 
-- **Climate entity** with full thermostat controls (temperature, on/off)
-- **Pool / Spa presets** to switch between pool and spa heating modes
-- **Temperature sensors** for water temperature, pool setpoint, and spa setpoint
-- **Diagnostic sensors** for operating mode, fault codes, deadband, calibration, and more
-- **Switches** for vacation hold, defrost guard, and defrost lock
-- **Automatic device discovery** for accounts with multiple heaters
+| Platform | Entities |
+|----------|----------|
+| **Climate** | Full thermostat control — Off / Pool Heat / Spa Heat, target temperature (50-104°F or Off) |
+| **Sensors** | Water Temperature, Coil Temperature, Pool Setpoint, Spa Setpoint, System Mode, Fault Status, Defrost Mode, Last Online |
+| **Switches** | Vacation Hold, Pool Cool, Pool Heat/Cool, Defrost Mode (Air/Reverse Cycle), Panel Lock |
+| **Numbers** | Pool Heat/Cool Deadband (2-8°F), Defrost End Temperature (42-50°F), Sensor Calibration (-10 to +10°F), Spa Timer Hours (0-20), Spa Timer Minutes (0/15/30/45) |
 
 ## Requirements
 
-- A pool heat pump with the **Compass WiFi** module installed
-- A working **Compass app** account (the same email/password you use in the mobile app)
-- The heater must be online and connected to the Compass cloud service
+- A pool/spa heat pump with the **ICM Controls Compass WiFi** module
+- An active **Compass** app account (email + password)
+- The heat pump registered and working in the Compass mobile app
 
 ## Installation
 
-### HACS (recommended)
+### HACS (Recommended)
 
 1. Open HACS in Home Assistant
-2. Go to **Integrations**
-3. Click the three dots menu (top right) and select **Custom repositories**
-4. Add this repository URL: `https://github.com/cjam28/compass-pool-heater-ha`
-5. Select **Integration** as the category
-6. Click **Add**
-7. Search for "Compass Pool Heater" and install it
-8. Restart Home Assistant
+2. Go to **Integrations** → three-dot menu → **Custom repositories**
+3. Add `https://github.com/cjam28/compass-pool-heater-ha` as an **Integration**
+4. Click **Download**
+5. Restart Home Assistant
 
 ### Manual
 
-1. Copy the `custom_components/compass_pool_heater` folder to your Home Assistant `config/custom_components/` directory
-2. Restart Home Assistant
+Copy the `custom_components/compass_pool_heater` folder into your Home Assistant `config/custom_components/` directory and restart.
 
 ## Setup
 
-1. Go to **Settings** > **Devices & Services** > **Add Integration**
+1. Go to **Settings** → **Devices & Services** → **Add Integration**
 2. Search for **Compass Pool Heater**
-3. Enter your Compass app **email** and **password**
-4. If you have multiple heaters, select which one to add
-5. Done! The integration will create climate, sensor, and switch entities
+3. Enter your Compass app email and password
+4. If you have multiple heat pumps, select which one to add
+5. Done — entities appear automatically
 
-## Entities
+## Entities Reference
 
 ### Climate
 
-| Entity | Description |
-|--------|-------------|
-| `climate.compass_pool_heater` | Main thermostat — set temperature, switch between Pool/Spa presets, turn on/off |
+The main thermostat entity with:
+- **HVAC Modes**: Off, Heat
+- **Presets**: Pool, Spa
+- **Temperature range**: 50-104°F (setpoint of 0 = Off)
 
 ### Sensors
 
-| Entity | Description |
+| Sensor | Description |
 |--------|-------------|
-| Water Temperature | Current water temperature reading (°F) |
-| Pool Setpoint | Current pool heating target (°F) |
-| Spa Setpoint | Current spa heating target (°F) |
-| Operating Mode | Current mode: Off, Pool, or Spa |
-| Fault Code | Active fault code (0 = no fault) |
-| Deadband | Temperature deadband setting |
-| Heat Sensitivity | Heat temperature sensitivity setting |
-| Calibration | Temperature calibration offset |
-| Defrost Duration | Defrost cycle duration setting |
-| Aux Heat Delta | Auxiliary heat delta threshold |
+| Water Temperature | Current water temperature (°F) — `RMT` register |
+| Coil Temperature | Heat pump coil temperature (°F) — `GEN15` register |
+| Pool Setpoint | Current pool target temperature or "Off" |
+| Spa Setpoint | Current spa target temperature or "Off" |
+| System Mode | Off / Pool Heat / Spa Heat |
+| Fault Status | No Fault, No Flow, or fault code |
+| Defrost Mode | Air Defrost or Reverse Cycle |
+| Last Online | Timestamp of last communication |
 
 ### Switches
 
-| Entity | Description |
-|--------|-------------|
-| Vacation Hold | Enable/disable vacation hold mode |
-| Defrost Guard | Enable/disable defrost guard |
-| Defrost Lock | Enable/disable defrost lock |
+| Switch | App Setting | API Field |
+|--------|-------------|-----------|
+| Vacation Hold | Vacation Hold | `VH` |
+| Pool Cool | #11 Pool Cool | `DF1` |
+| Pool Heat/Cool | #12 Pool Heat/Cool | `DF2` |
+| Defrost Mode (Air Defrost) | #17 Defrost Mode | `DFL` (1=Air, 0=Reverse Cycle) |
+| Panel Lock | #2 Lock | `LKO` |
+
+### Number Controls
+
+| Control | App Setting | API Field | Range |
+|---------|-------------|-----------|-------|
+| Pool Heat/Cool Deadband | #13 Pool Heat/Cool Deadband | `DFU` | 2-8°F |
+| Defrost End Temperature | #18 Defrost End | `AXD` | 42-50°F |
+| Sensor Calibration | Sensor Calibration | `CAL` | -10 to +10°F |
+| Spa Timer Hours | #15 Spa Timer (hours) | `DF3` | 0-20 |
+| Spa Timer Minutes | #15 Spa Timer (minutes) | `STOF` | 0, 15, 30, 45 |
 
 ## How It Works
 
-This integration communicates with the **captouchwifi.com** cloud API — the same backend used by the Compass mobile app. It polls the heater status on a configurable interval (default 30 seconds) and sends commands when you adjust settings in Home Assistant.
+This integration communicates with the ICM Controls cloud API at `captouchwifi.com` — the same backend used by the Compass mobile app. The heat pump connects to WiFi and maintains a persistent connection to the cloud; commands are relayed through it.
 
-```
-Home Assistant → captouchwifi.com API → Heater WiFi Module → Heat Pump
-```
+**Polling interval**: 30 seconds (configurable).
+
+## API Field Reference
+
+| API Field | Compass App Setting | Description |
+|-----------|-------------------|-------------|
+| `MD` | #1 System Mode | 0=Off, 1=Pool Heat, 4=Spa Heat |
+| `LKO` | #2 Lock | 0=Unlocked, 1=Locked |
+| `CHGF` | #3 Fault Conditions | 0=No Fault, 8=No Flow |
+| `GEN15` | #4 Coil Temperature | Read-only sensor (°F) |
+| `RMT` | Water Temperature | Read-only sensor (°F) |
+| `DF1` | #11 Pool Cool | 0=Disabled, 1=Enabled |
+| `DF2` | #12 Pool Heat/Cool | 0=Disabled, 1=Enabled |
+| `DFU` | #13 Pool Heat/Cool Deadband | Range 2-8 (°F) |
+| `DF3` | #15 Spa Timer (hours) | Range 0-20 |
+| `STOF` | #15 Spa Timer (minutes) | 0, 15, 30, 45 |
+| `DFL` | #17 Defrost Mode | 0=Reverse Cycle, 1=Air Defrost |
+| `AXD` | #18 Defrost End | Range 42-50 (°F) |
+| `CAL` | Sensor Calibration | Range -10 to +10 (°F) |
+| `VH` | Vacation Hold | 0=Off, 1=On |
+| `RSV1` | Pool Setpoint | 0=Off, 50-104 (°F) |
+| `RSV2` | Spa Setpoint | 0=Off, 50-104 (°F) |
 
 ## Compatible Hardware
 
-This integration works with any pool heat pump that uses the **Compass WiFi** module by ICM Controls, including:
+Any pool/spa heat pump using the ICM Controls Compass WiFi module, including:
 
-- Gulfstream heat pumps
-- Aqua Comfort heat pumps
-- Built Right heat pumps
-- Other ICM Controls-based pool heaters
-
-If your heater uses the "Compass WiFi Heat Pump Navigator" app, this integration should work.
-
-## Using with nodejs-poolController
-
-If you also use [nodejs-poolController](https://github.com/tagyoureit/nodejs-poolController) (njsPC) for your pool pump, this integration works alongside [njsPC-HA](https://github.com/Crewski/njsPC-HA). They are separate integrations controlling separate equipment:
-
-- **njsPC-HA** controls your pool automation system (pumps, valves, chlorinator) via RS-485
-- **Compass Pool Heater** controls your heat pump via the cloud API
-
-You can create Home Assistant automations to coordinate between them, for example:
-- Turn on the heater when the pool pump starts
-- Set spa mode on the heater when njsPC activates the spa circuit
+- **Gulfstream** (confirmed working)
+- **Aqua Comfort**
+- **Built Right**
+- Other ICM Controls-based units with the Compass app
 
 ## Troubleshooting
 
-- **"Could not connect"**: Verify the Compass cloud service is online by checking the mobile app
-- **"Invalid credentials"**: Use the same email/password as your Compass mobile app
-- **"No devices found"**: Ensure your heater is registered in the Compass app and online
-- **Stale data**: The heater WiFi module can go offline temporarily. Check `last_online` attribute
-
-## Credits
-
-This integration was built by reverse-engineering the Compass WiFi app's cloud API. The API is not officially documented by ICM Controls.
+- **"Invalid email or password"**: The API uses your email as the `username` field. Make sure you can log in to the Compass mobile app with the same credentials.
+- **Stale data**: The cloud API is polled every 30 seconds. If the heater is offline, the last known state is shown.
+- **"No Flow" fault**: This is reported by the heat pump itself when it detects insufficient water flow. Check your pool pump.
 
 ## License
 

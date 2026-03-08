@@ -16,3 +16,8 @@ SET_BLOCK_LENGTH = 7
 MODE_OFF = 0
 MODE_POOL = 1
 MODE_SPA = 4
+
+FAULT_CODES = {
+    0: "No Fault",
+    8: "No Flow",
+}

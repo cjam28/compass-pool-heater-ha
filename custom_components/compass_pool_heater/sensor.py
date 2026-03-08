@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -17,12 +16,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import HeaterState
-from .const import CONF_THERMOSTAT_KEY, DOMAIN
+from .const import CONF_THERMOSTAT_KEY, DOMAIN, FAULT_CODES
 from .coordinator import CompassCoordinator
 
-_LOGGER = logging.getLogger(__name__)
-
-MODE_NAMES = {0: "Off", 1: "Pool", 4: "Spa"}
+MODE_NAMES = {0: "Off", 1: "Pool Heat", 4: "Spa Heat"}
+DEFROST_MODE_NAMES = {0: "Reverse Cycle", 1: "Air Defrost"}
 
 
 async def async_setup_entry(
@@ -30,35 +28,27 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up sensor entities from a config entry."""
     data = hass.data[DOMAIN][entry.entry_id]
     coordinator: CompassCoordinator = data["coordinator"]
     key = entry.data[CONF_THERMOSTAT_KEY]
 
-    async_add_entities(
-        [
-            CompassTemperatureSensor(coordinator, entry, key, "water_temperature", "Water Temperature", "RMT"),
-            CompassTemperatureSensor(coordinator, entry, key, "pool_setpoint", "Pool Setpoint", "RSV1"),
-            CompassTemperatureSensor(coordinator, entry, key, "spa_setpoint", "Spa Setpoint", "RSV2"),
-            CompassModeSensor(coordinator, entry, key),
-            CompassFaultSensor(coordinator, entry, key),
-            CompassDiagnosticSensor(coordinator, entry, key, "deadband", "Deadband", "DB", "mdi:thermometer-lines"),
-            CompassDiagnosticSensor(coordinator, entry, key, "heat_sensitivity", "Heat Sensitivity", "HTS", "mdi:gauge"),
-            CompassDiagnosticSensor(coordinator, entry, key, "calibration", "Calibration", "CAL", "mdi:tune"),
-            CompassDiagnosticSensor(coordinator, entry, key, "defrost_duration", "Defrost Duration", "DFU", "mdi:snowflake-melt"),
-            CompassDiagnosticSensor(coordinator, entry, key, "aux_heat_delta", "Aux Heat Delta", "AXD", "mdi:thermometer-chevron-up"),
-        ],
-    )
+    async_add_entities([
+        CompassWaterTempSensor(coordinator, entry, key),
+        CompassCoilTempSensor(coordinator, entry, key),
+        CompassPoolSetpointSensor(coordinator, entry, key),
+        CompassSpaSetpointSensor(coordinator, entry, key),
+        CompassModeSensor(coordinator, entry, key),
+        CompassFaultSensor(coordinator, entry, key),
+        CompassDefrostModeSensor(coordinator, entry, key),
+        CompassLastOnlineSensor(coordinator, entry, key),
+    ])
 
 
-class CompassSensorBase(CoordinatorEntity[CompassCoordinator], SensorEntity):
-    """Base class for Compass sensors using the shared coordinator."""
-
+class _Base(CoordinatorEntity[CompassCoordinator], SensorEntity):
     _attr_has_entity_name = True
 
     def __init__(self, coordinator: CompassCoordinator, entry: ConfigEntry, key: str) -> None:
         super().__init__(coordinator)
-        self._entry = entry
         self._key = key
 
     @property
@@ -69,44 +59,99 @@ class CompassSensorBase(CoordinatorEntity[CompassCoordinator], SensorEntity):
     def device_info(self) -> dict[str, Any]:
         return {
             "identifiers": {(DOMAIN, self._key)},
-            "name": "Compass Pool Heater",
+            "name": self._state.name if self._state else "Compass Pool Heater",
             "manufacturer": "Gulfstream / ICM Controls",
             "model": "Compass WiFi Heat Pump",
         }
 
 
-class CompassTemperatureSensor(CompassSensorBase):
-    """Temperature reading sensor."""
-
+class CompassWaterTempSensor(_Base):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_icon = "mdi:thermometer-water"
 
-    def __init__(
-        self, coordinator: CompassCoordinator, entry: ConfigEntry, key: str,
-        sensor_id: str, name: str, register: str,
-    ) -> None:
+    def __init__(self, coordinator, entry, key):
         super().__init__(coordinator, entry, key)
-        self._register = register
-        self._attr_unique_id = f"compass_{key}_{sensor_id}"
-        self._attr_name = name
+        self._attr_unique_id = f"compass_{key}_water_temp"
+        self._attr_name = "Water Temperature"
+
+    @property
+    def native_value(self) -> float | None:
+        return self._state.current_temp if self._state else None
+
+
+class CompassCoilTempSensor(_Base):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_icon = "mdi:thermostat-cog"
+
+    def __init__(self, coordinator, entry, key):
+        super().__init__(coordinator, entry, key)
+        self._attr_unique_id = f"compass_{key}_coil_temp"
+        self._attr_name = "Coil Temperature"
+
+    @property
+    def native_value(self) -> float | None:
+        return self._state.coil_temp if self._state else None
+
+
+class CompassPoolSetpointSensor(_Base):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_icon = "mdi:pool-thermometer"
+
+    def __init__(self, coordinator, entry, key):
+        super().__init__(coordinator, entry, key)
+        self._attr_unique_id = f"compass_{key}_pool_setpoint"
+        self._attr_name = "Pool Setpoint"
 
     @property
     def native_value(self) -> float | None:
         if self._state is None:
             return None
-        return self._state.raw.get(self._register)
+        return self._state.pool_setpoint if self._state.pool_setpoint > 0 else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        if self._state and self._state.pool_setpoint == 0:
+            return {"status": "Off"}
+        return {}
 
 
-class CompassModeSensor(CompassSensorBase):
-    """Heater operating mode sensor."""
+class CompassSpaSetpointSensor(_Base):
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = UnitOfTemperature.FAHRENHEIT
+    _attr_icon = "mdi:hot-tub"
 
+    def __init__(self, coordinator, entry, key):
+        super().__init__(coordinator, entry, key)
+        self._attr_unique_id = f"compass_{key}_spa_setpoint"
+        self._attr_name = "Spa Setpoint"
+
+    @property
+    def native_value(self) -> float | None:
+        if self._state is None:
+            return None
+        return self._state.spa_setpoint if self._state.spa_setpoint > 0 else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        if self._state and self._state.spa_setpoint == 0:
+            return {"status": "Off"}
+        return {}
+
+
+class CompassModeSensor(_Base):
     _attr_icon = "mdi:thermostat"
 
-    def __init__(self, coordinator: CompassCoordinator, entry: ConfigEntry, key: str) -> None:
+    def __init__(self, coordinator, entry, key):
         super().__init__(coordinator, entry, key)
         self._attr_unique_id = f"compass_{key}_mode"
-        self._attr_name = "Operating Mode"
+        self._attr_name = "System Mode"
 
     @property
     def native_value(self) -> str | None:
@@ -121,21 +166,20 @@ class CompassModeSensor(CompassSensorBase):
         return {"mode_raw": self._state.mode}
 
 
-class CompassFaultSensor(CompassSensorBase):
-    """Fault code sensor."""
-
+class CompassFaultSensor(_Base):
     _attr_icon = "mdi:alert-circle-outline"
 
-    def __init__(self, coordinator: CompassCoordinator, entry: ConfigEntry, key: str) -> None:
+    def __init__(self, coordinator, entry, key):
         super().__init__(coordinator, entry, key)
         self._attr_unique_id = f"compass_{key}_fault"
-        self._attr_name = "Fault Code"
+        self._attr_name = "Fault Status"
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> str | None:
         if self._state is None:
             return None
-        return self._state.fault_code
+        code = self._state.fault_code
+        return FAULT_CODES.get(code, f"Fault Code {code}")
 
     @property
     def icon(self) -> str:
@@ -143,24 +187,42 @@ class CompassFaultSensor(CompassSensorBase):
             return "mdi:alert-circle"
         return "mdi:check-circle-outline"
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        if self._state is None:
+            return {}
+        return {
+            "fault_code": self._state.fault_code,
+            "fault_active": self._state.fault_code != 0,
+        }
 
-class CompassDiagnosticSensor(CompassSensorBase):
-    """Generic diagnostic value sensor."""
 
-    _attr_state_class = SensorStateClass.MEASUREMENT
+class CompassDefrostModeSensor(_Base):
+    _attr_icon = "mdi:snowflake-melt"
 
-    def __init__(
-        self, coordinator: CompassCoordinator, entry: ConfigEntry, key: str,
-        sensor_id: str, name: str, register: str, icon: str,
-    ) -> None:
+    def __init__(self, coordinator, entry, key):
         super().__init__(coordinator, entry, key)
-        self._register = register
-        self._attr_unique_id = f"compass_{key}_{sensor_id}"
-        self._attr_name = name
-        self._attr_icon = icon
+        self._attr_unique_id = f"compass_{key}_defrost_mode"
+        self._attr_name = "Defrost Mode"
 
     @property
-    def native_value(self) -> int | None:
+    def native_value(self) -> str | None:
         if self._state is None:
             return None
-        return self._state.raw.get(self._register)
+        return DEFROST_MODE_NAMES.get(self._state.defrost_mode, f"Unknown ({self._state.defrost_mode})")
+
+
+class CompassLastOnlineSensor(_Base):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:clock-check-outline"
+
+    def __init__(self, coordinator, entry, key):
+        super().__init__(coordinator, entry, key)
+        self._attr_unique_id = f"compass_{key}_last_online"
+        self._attr_name = "Last Online"
+
+    @property
+    def native_value(self) -> str | None:
+        if self._state is None or not self._state.last_online:
+            return None
+        return self._state.last_online.replace(" ", "T") + "+00:00"
