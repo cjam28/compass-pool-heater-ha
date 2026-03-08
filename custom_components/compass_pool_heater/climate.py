@@ -167,7 +167,7 @@ class CompassPoolHeaterClimate(CoordinatorEntity[CompassCoordinator], ClimateEnt
             _LOGGER.error("Failed to send command: %s", err)
             return
 
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         if hvac_mode == HVACMode.OFF:

@@ -78,7 +78,7 @@ class CompassPoolHeatCoolDeadband(_Base):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._api.set_fields({"DFU": int(value)})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
 
 class CompassDefrostEnd(_Base):
@@ -102,7 +102,7 @@ class CompassDefrostEnd(_Base):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._api.set_fields({"AXD": int(value)})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
 
 class CompassCalibration(_Base):
@@ -126,7 +126,7 @@ class CompassCalibration(_Base):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._api.set_fields({"CAL": int(value)})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
 
 class CompassSpaTimerHours(_Base):
@@ -160,7 +160,7 @@ class CompassSpaTimerHours(_Base):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._api.set_fields({"DF3": int(value)})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
 
 class CompassSpaTimerMinutes(_Base):
@@ -184,4 +184,4 @@ class CompassSpaTimerMinutes(_Base):
 
     async def async_set_native_value(self, value: float) -> None:
         await self._api.set_fields({"STOF": int(value)})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -12,6 +13,8 @@ from .api import CompassApi, CompassApiError, HeaterState
 from .const import DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
+
+COMMAND_REFRESH_DELAY = 3
 
 
 class CompassCoordinator(DataUpdateCoordinator[HeaterState]):
@@ -33,3 +36,8 @@ class CompassCoordinator(DataUpdateCoordinator[HeaterState]):
             return await self.api.get_state()
         except CompassApiError as err:
             raise UpdateFailed(f"Error communicating with heater API: {err}") from err
+
+    async def async_refresh_after_command(self) -> None:
+        """Wait for the cloud API to propagate, then refresh."""
+        await asyncio.sleep(COMMAND_REFRESH_DELAY)
+        await self.async_request_refresh()

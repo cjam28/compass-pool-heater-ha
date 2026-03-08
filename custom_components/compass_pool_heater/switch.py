@@ -106,11 +106,11 @@ class CompassFieldSwitch(CoordinatorEntity[CompassCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._api.set_fields({self._field: 1})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._api.set_fields({self._field: 0})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
 
 class CompassDefrostModeSwitch(CoordinatorEntity[CompassCoordinator], SwitchEntity):
@@ -154,11 +154,11 @@ class CompassDefrostModeSwitch(CoordinatorEntity[CompassCoordinator], SwitchEnti
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._api.set_fields({"DFL": 1})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._api.set_fields({"DFL": 0})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
 
 class CompassLockSwitch(CoordinatorEntity[CompassCoordinator], SwitchEntity):
@@ -198,8 +198,8 @@ class CompassLockSwitch(CoordinatorEntity[CompassCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._api.set_fields({"LKO": 1})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._api.set_fields({"LKO": 0})
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_refresh_after_command()
