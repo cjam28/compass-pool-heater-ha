@@ -28,6 +28,13 @@ blueprint:
     temperature management entirely.
 
 
+    HEATER-AWARE PUMP CONTROL — When the heater is in heat mode, the
+    pump drops to low speed instead of turning off at schedule boundaries.
+    This prevents No Flow faults while still minimizing energy use. When
+    using the Pump Coordination blueprint alongside this one, set its
+    Pump-Off Delay to 0.
+
+
     Works with any pump controller — njsPC, Pentair ScreenLogic, Hayward
     OmniLogic, a simple relay switch, or anything else in Home Assistant.
 
@@ -359,8 +366,17 @@ action:
                   - choose: []
                     default: !input pump_default_action
             default:
-              - choose: []
-                default: !input pump_off_action
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: >-
+                          {{ states(heater_eid) == 'heat' }}
+                    sequence:
+                      - choose: []
+                        default: !input pump_low_action
+                default:
+                  - choose: []
+                    default: !input pump_off_action
 
       # ── Night start → pump low ────────────────────────────────────────
       - conditions:
@@ -373,7 +389,7 @@ action:
           - choose: []
             default: !input pump_low_action
 
-      # ── Night end → pump off ──────────────────────────────────────────
+      # ── Night end → pump off (or low if heater active) ────────────────
       - conditions:
           - condition: trigger
             id: night_end
@@ -381,8 +397,17 @@ action:
           - condition: template
             value_template: >-
               {{ pool_occ_eid in ['', none] or states(pool_occ_eid) != 'on' }}
-          - choose: []
-            default: !input pump_off_action
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ states(heater_eid) == 'heat' }}
+                sequence:
+                  - choose: []
+                    default: !input pump_low_action
+            default:
+              - choose: []
+                default: !input pump_off_action
 
       # ── Midday start → pump default ───────────────────────────────────
       - conditions:
@@ -395,7 +420,7 @@ action:
           - choose: []
             default: !input pump_default_action
 
-      # ── Midday end → pump off ─────────────────────────────────────────
+      # ── Midday end → pump off (or low if heater active) ───────────────
       - conditions:
           - condition: trigger
             id: midday_end
@@ -403,5 +428,14 @@ action:
           - condition: template
             value_template: >-
               {{ pool_occ_eid in ['', none] or states(pool_occ_eid) != 'on' }}
-          - choose: []
-            default: !input pump_off_action
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ states(heater_eid) == 'heat' }}
+                sequence:
+                  - choose: []
+                    default: !input pump_low_action
+            default:
+              - choose: []
+                default: !input pump_off_action

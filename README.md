@@ -199,9 +199,10 @@ An all-in-one blueprint for pump scheduling with optional occupancy-based speed 
 **What it does:**
 
 1. **Pump Schedule** — runs the pump at low speed overnight and default speed midday (times are configurable)
-2. **Pool Occupancy Override** *(optional)* — when the pool area is occupied, the pump switches to max speed; when guests leave, it returns to the scheduled speed
-3. **Heater Guest/Vacant Mode** *(optional)* — when the house is occupied, the heater is set to the guest temperature (default 86°F); after no occupancy for a configurable period (default 12 hours), it drops to the vacant temperature (default 78°F)
-4. **Dashboard Toggle** *(optional)* — a guest mode `input_boolean` can be toggled manually from the dashboard to override occupancy detection
+2. **Heater-Aware Pump Control** — at schedule boundaries, if the heater is in heat mode the pump drops to low speed instead of turning off, preventing No Flow faults
+3. **Pool Occupancy Override** *(optional)* — when the pool area is occupied, the pump switches to max speed; when guests leave, it returns to the scheduled speed
+4. **Heater Guest/Vacant Mode** *(optional)* — when the house is occupied, the heater is set to the guest temperature (default 86°F); after no occupancy for a configurable period (default 12 hours), it drops to the vacant temperature (default 78°F)
+5. **Dashboard Toggle** *(optional)* — a guest mode `input_boolean` can be toggled manually from the dashboard to override occupancy detection
 
 #### Prerequisites
 
@@ -273,6 +274,19 @@ Leave Guest Mode Toggle, House Occupancy Sensor, Pool Area Occupancy Sensor, and
 | Pump Default Speed Action | `script.pump_set_speed_exclusive` with data `target: default` |
 | Pump Max Speed Action | `script.pump_set_speed_exclusive` with data `target: max` |
 | Pump Off Action | `script.pump_all_speeds_off` |
+
+### Using Both Blueprints Together
+
+The **Pump Coordination** and **Smart Schedule** blueprints are designed to work together. Smart Schedule manages the pump timetable and heater setpoints; Pump Coordination acts as a safety net to ensure the pump runs whenever the heater needs water flow.
+
+**Recommended Pump Coordination settings when using Smart Schedule:**
+
+| Setting | Recommended Value | Why |
+|---------|-------------------|-----|
+| Pump-Off Delay | **0** (disabled) | Smart Schedule already manages pump on/off timing. A non-zero delay would turn the pump off mid-schedule window when the heater turns off. |
+| Check Frequency | **Every 15 minutes** | Shorter interval means Pump Coordination catches any gaps faster. |
+
+**How they interact:** Smart Schedule controls the pump schedule, but if the heater is in heat mode it keeps the pump at low speed instead of turning it off at schedule boundaries. Pump Coordination's periodic check catches any remaining case where the pump is off but the heater needs flow, starts the pump, checks the temperature, and either keeps it running or shuts it back off.
 
 ## Troubleshooting
 

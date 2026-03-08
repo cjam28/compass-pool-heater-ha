@@ -122,7 +122,8 @@ blueprint:
       description: >
         How many minutes to keep the pump running after the heater is
         turned off. This circulates residual heat through the pool.
-        Set to 0 to disable (useful if you have a separate pump schedule).
+        Set to 0 to disable — recommended when using the Smart Schedule
+        blueprint, which manages pump on/off timing itself.
       default: 5
       selector:
         number:
