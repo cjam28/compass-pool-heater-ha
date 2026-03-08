@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -229,7 +230,11 @@ class CompassLastOnlineSensor(_Base):
         self._attr_name = "Last Online"
 
     @property
-    def native_value(self) -> str | None:
+    def native_value(self) -> datetime | None:
         if self._state is None or not self._state.last_online:
             return None
-        return self._state.last_online.replace(" ", "T") + "+00:00"
+        try:
+            dt = datetime.strptime(self._state.last_online, "%Y-%m-%d %H:%M:%S")
+            return dt.replace(tzinfo=timezone.utc)
+        except (ValueError, TypeError):
+            return None
