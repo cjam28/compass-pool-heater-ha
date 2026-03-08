@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import HeaterState
-from .const import CONF_THERMOSTAT_KEY, DOMAIN, FAULT_CODES
+from .const import CONF_THERMOSTAT_KEY, DOMAIN, FAULT_CODES, FAULT_DESCRIPTIONS
 from .coordinator import CompassCoordinator
 
 MODE_NAMES = {0: "Off", 1: "Pool Heat", 4: "Spa Heat"}
@@ -179,7 +179,11 @@ class CompassFaultSensor(_Base):
         if self._state is None:
             return None
         code = self._state.fault_code
-        return FAULT_CODES.get(code, f"Fault Code {code}")
+        if code == 0:
+            return "No Current Fault"
+        if code in FAULT_CODES:
+            return FAULT_CODES[code]
+        return f"Fault Code {code}"
 
     @property
     def icon(self) -> str:
@@ -191,10 +195,13 @@ class CompassFaultSensor(_Base):
     def extra_state_attributes(self) -> dict[str, Any]:
         if self._state is None:
             return {}
-        return {
-            "fault_code": self._state.fault_code,
-            "fault_active": self._state.fault_code != 0,
+        code = self._state.fault_code
+        attrs: dict[str, Any] = {
+            "fault_code_raw": code,
+            "fault_active": code != 0,
+            "known_fault_types": FAULT_DESCRIPTIONS,
         }
+        return attrs
 
 
 class CompassDefrostModeSensor(_Base):

@@ -17,7 +17,15 @@ MODE_OFF = 0
 MODE_POOL = 1
 MODE_SPA = 4
 
-FAULT_CODES = {
-    0: "No Fault",
+FAULT_CODES: dict[int, str] = {
+    0: "No Current Fault",
     8: "No Flow",
 }
+
+FAULT_DESCRIPTIONS = [
+    "Evap. Sensor Malfunction",
+    "Water Sensor Malfunction",
+    "No Flow",
+    "Low Pressure Switch",
+    "High Pressure Switch",
+]

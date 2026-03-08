@@ -125,6 +125,21 @@ Any pool/spa heat pump using the ICM Controls Compass WiFi module, including:
 - **Stale data**: The cloud API is polled every 30 seconds. If the heater is offline, the last known state is shown.
 - **"No Flow" fault**: This is reported by the heat pump itself when it detects insufficient water flow. Check your pool pump.
 
+## Known Fault Codes (CHGF register)
+
+Extracted from the Compass app source:
+
+| CHGF Value | Fault Description |
+|---|---|
+| 0 | No Current Fault |
+| 8 | No Flow *(confirmed)* |
+| ? | Evap. Sensor Malfunction |
+| ? | Water Sensor Malfunction |
+| ? | Low Pressure Switch |
+| ? | High Pressure Switch |
+
+Only `CHGF=8` has been confirmed via live testing. The other fault codes exist in the app but their exact CHGF values haven't been mapped yet. If you encounter a different fault code, the raw value will be shown — please report it so we can complete the mapping!
+
 ## License
 
 MIT
