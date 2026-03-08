@@ -26,7 +26,7 @@ Home Assistant integration for **Gulfstream**, **Aqua Comfort**, **Built Right**
 1. Open HACS in Home Assistant
 2. Go to **Integrations**
 3. Click the three dots menu (top right) and select **Custom repositories**
-4. Add this repository URL: `https://github.com/christoalto/compass-pool-heater-ha`
+4. Add this repository URL: `https://github.com/cjam28/compass-pool-heater-ha`
 5. Select **Integration** as the category
 6. Click **Add**
 7. Search for "Compass Pool Heater" and install it
