@@ -91,7 +91,7 @@ blueprint:
         How often to check the water temperature when the heater is in
         heat mode but the pump is off. A shorter interval reacts faster
         but cycles the pump more often.
-      default: "/60"
+      default: "/30"
       selector:
         select:
           options:
@@ -99,8 +99,8 @@ blueprint:
               value: "/15"
             - label: "Every 30 minutes"
               value: "/30"
-            - label: "Every 60 minutes"
-              value: "/60"
+            - label: "Every hour (at :00)"
+              value: "0"
 
     pump_warmup_seconds:
       name: Pump Warmup Time (seconds)
