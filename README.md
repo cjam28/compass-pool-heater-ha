@@ -119,6 +119,71 @@ Any pool/spa heat pump using the ICM Controls Compass WiFi module, including:
 - **Built Right**
 - Other ICM Controls-based units with the Compass app
 
+## Automation Blueprints
+
+### Pump Coordination
+
+This blueprint automatically coordinates your pool pump with the heater to prevent "No Flow" faults and handle stale temperature readings (the water temp sensor at the heater reads stagnant pipe water when the pump is off).
+
+**Three behaviors:**
+
+1. **Auto-Start** — turns the pump on when heating is activated
+2. **Periodic Check** — every N minutes, if the heater wants to heat but the pump is off, starts the pump, waits for a fresh reading, and decides whether to keep it running or shut it back off
+3. **Auto-Stop** — optionally turns the pump off after a configurable delay when the heater is turned off
+
+The blueprint works with **any** pump controller — njsPC-HA, Pentair ScreenLogic, Hayward OmniLogic, a simple relay switch, or anything else in Home Assistant. You define exactly what "start pump" and "stop pump" mean for your setup via the action selectors.
+
+#### Setup
+
+The blueprint is **automatically installed** when you add the integration. After installing or updating via HACS and restarting Home Assistant, you will see a persistent notification prompting you to configure it.
+
+1. Go to **Settings** → **Automations & Scenes** → **Blueprints**
+2. Find **Compass Pool Heater – Pump Coordination**
+3. Click **Create Automation**
+4. Configure the inputs (see below) for your pump setup
+5. Save and enable the automation
+
+<details>
+<summary>Manual import (alternative)</summary>
+
+If you prefer to import manually, go to **Blueprints** → **Import Blueprint** and paste:
+```
+https://github.com/cjam28/compass-pool-heater-ha/raw/main/blueprints/automation/compass_pool_heater/pump_coordination.yaml
+```
+</details>
+
+#### Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| Pool Heater | Compass heater climate entity | — |
+| Water Temperature Sensor | Water temp sensor (from heater) | — |
+| Pump State Entity | Entity showing pump on/off (binary_sensor, switch, etc.) | — |
+| Pump "On" State Value | State value meaning the pump is running | `on` |
+| Pump Start Action | Action(s) to start the pump | — |
+| Pump Stop Action | Action(s) to stop the pump | — |
+| Check Frequency | How often to check temp when pump is off | Every 60 min |
+| Pump Warmup Time | Seconds to run pump for a fresh temp reading | 120 |
+| Pump-Off Delay | Minutes to keep pump on after heater turns off (0 = disabled) | 5 |
+
+#### Example: Simple On/Off Switch
+
+| Input | Value |
+|-------|-------|
+| Pump State Entity | `switch.pool_pump` |
+| Pump "On" State Value | `on` |
+| Pump Start Action | Service `switch.turn_on` on `switch.pool_pump` |
+| Pump Stop Action | Service `switch.turn_off` on `switch.pool_pump` |
+
+#### Example: njsPC-HA (Multi-Speed Pump)
+
+| Input | Value |
+|-------|-------|
+| Pump State Entity | `binary_sensor.pump_running_state` |
+| Pump "On" State Value | `on` |
+| Pump Start Action | Service `script.turn_on` on `script.pump_set_speed_exclusive` with data `target: default` |
+| Pump Stop Action | Service `script.turn_on` on `script.pump_all_speeds_off` |
+
 ## Troubleshooting
 
 - **"Invalid email or password"**: The API uses your email as the `username` field. Make sure you can log in to the Compass mobile app with the same credentials.

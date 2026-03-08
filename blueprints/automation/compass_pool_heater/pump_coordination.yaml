@@ -1,0 +1,216 @@
+blueprint:
+  name: "Compass Pool Heater – Pump Coordination"
+  description: >
+    Coordinates your pool pump with the Compass pool heater to prevent
+    "No Flow" faults and handle stale temperature readings when the pump
+    is off.
+
+
+    Three behaviors:
+
+    1. AUTO-START — Turns the pump on when heating is activated.
+
+    2. PERIODIC CHECK — Every N minutes, if the heater wants to heat but
+    the pump is off, starts the pump and waits for fresh water to reach
+    the sensor. If the temperature already meets the setpoint the pump is
+    turned back off; otherwise it stays on so the heater can engage.
+
+    3. AUTO-STOP — Optionally turns the pump off after a configurable
+    delay when the heater is turned off.
+
+
+    Works with any pump controller — njsPC, Pentair ScreenLogic, Hayward
+    OmniLogic, a simple relay switch, or anything else in Home Assistant.
+    You define exactly what "start pump" and "stop pump" mean for your
+    setup using the action selectors below.
+  domain: automation
+  source_url: https://github.com/cjam28/compass-pool-heater-ha/blob/main/blueprints/automation/compass_pool_heater/pump_coordination.yaml
+  input:
+    heater_climate:
+      name: Pool Heater
+      description: The Compass pool heater climate entity.
+      selector:
+        entity:
+          domain: climate
+
+    water_temp_sensor:
+      name: Water Temperature Sensor
+      description: >
+        Sensor reporting current water temperature from the heater.
+        Used during periodic checks to compare against the target setpoint.
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+
+    pump_state_entity:
+      name: Pump State Entity
+      description: >
+        Entity that indicates whether the pool pump is currently running.
+        Can be a binary_sensor, switch, sensor, or input_boolean from any
+        pool controller integration (njsPC-HA, Pentair ScreenLogic, etc.).
+      selector:
+        entity:
+          domain:
+            - binary_sensor
+            - switch
+            - sensor
+            - input_boolean
+
+    pump_on_state:
+      name: Pump "On" State Value
+      description: >
+        The state value that means the pump is running. Common values
+        include "on" (most switches and binary sensors), "running", or
+        "true". The comparison is case-insensitive.
+      default: "on"
+      selector:
+        text:
+
+    pump_start_action:
+      name: Pump Start Action
+      description: >
+        Action(s) to run when the pump needs to start. For a simple
+        on/off switch, add a switch.turn_on action. For multi-speed
+        pumps (e.g. njsPC), call your speed-selection script.
+      selector:
+        action:
+
+    pump_stop_action:
+      name: Pump Stop Action
+      description: >
+        Action(s) to run when the pump should stop. For a simple switch,
+        add a switch.turn_off action. For multi-speed pumps (e.g. njsPC),
+        call your all-speeds-off script.
+      selector:
+        action:
+
+    check_frequency:
+      name: Temperature Check Frequency
+      description: >
+        How often to check the water temperature when the heater is in
+        heat mode but the pump is off. A shorter interval reacts faster
+        but cycles the pump more often.
+      default: "/60"
+      selector:
+        select:
+          options:
+            - label: "Every 15 minutes"
+              value: "/15"
+            - label: "Every 30 minutes"
+              value: "/30"
+            - label: "Every 60 minutes"
+              value: "/60"
+
+    pump_warmup_seconds:
+      name: Pump Warmup Time (seconds)
+      description: >
+        How long to run the pump before reading the water temperature.
+        This allows fresh pool water to flow past the heater's sensor
+        for an accurate reading. 120 seconds (2 minutes) works well for
+        most installations.
+      default: 120
+      selector:
+        number:
+          min: 30
+          max: 300
+          step: 30
+          unit_of_measurement: seconds
+
+    pump_off_delay:
+      name: Pump-Off Delay After Heater Turns Off (minutes)
+      description: >
+        How many minutes to keep the pump running after the heater is
+        turned off. This circulates residual heat through the pool.
+        Set to 0 to disable (useful if you have a separate pump schedule).
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 30
+          step: 1
+          unit_of_measurement: minutes
+
+mode: queued
+max: 5
+max_exceeded: silent
+
+variables:
+  pump_state_eid: !input pump_state_entity
+  pump_on_val: !input pump_on_state
+  water_temp_eid: !input water_temp_sensor
+  heater_eid: !input heater_climate
+  off_delay: !input pump_off_delay
+
+trigger:
+  - platform: state
+    entity_id: !input heater_climate
+    to: "heat"
+    id: heater_on
+
+  - platform: state
+    entity_id: !input heater_climate
+    from: "heat"
+    id: heater_off
+
+  - platform: time_pattern
+    minutes: !input check_frequency
+    id: periodic_check
+
+action:
+  - choose:
+      # ── Heater turned on ─────────────────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: heater_on
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ states(pump_state_eid) | lower != pump_on_val | lower }}
+          - choose: []
+            default: !input pump_start_action
+
+      # ── Heater turned off ────────────────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: heater_off
+        sequence:
+          - condition: template
+            value_template: "{{ off_delay | int(0) > 0 }}"
+          - delay:
+              minutes: !input pump_off_delay
+          - condition: template
+            value_template: >-
+              {{ states(heater_eid) != 'heat' }}
+          - choose: []
+            default: !input pump_stop_action
+
+      # ── Periodic temperature check ───────────────────────────────────
+      - conditions:
+          - condition: trigger
+            id: periodic_check
+        sequence:
+          - condition: template
+            value_template: >-
+              {{ states(heater_eid) == 'heat' }}
+          - condition: template
+            value_template: >-
+              {{ state_attr(heater_eid, 'temperature') not in [None, 0] }}
+          - condition: template
+            value_template: >-
+              {{ states(pump_state_eid) | lower != pump_on_val | lower }}
+          - choose: []
+            default: !input pump_start_action
+          - delay:
+              seconds: !input pump_warmup_seconds
+          - condition: template
+            value_template: >-
+              {{ states(heater_eid) == 'heat' }}
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ states(water_temp_eid) | float(0) >=
+                     state_attr(heater_eid, 'temperature') | float(999) }}
+            then:
+              - choose: []
+                default: !input pump_stop_action
