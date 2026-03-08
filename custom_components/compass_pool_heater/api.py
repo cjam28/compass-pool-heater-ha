@@ -145,7 +145,7 @@ class CompassApi:
             session = aiohttp.ClientSession()
 
         try:
-            payload = {"action": "login", "email": email, "password": password}
+            payload = {"action": "login", "username": email, "password": password}
             async with session.post(
                 API_URL, json=payload, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
