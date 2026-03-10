@@ -18,14 +18,16 @@ blueprint:
     Area Occupancy Sensor blank to disable.
 
 
-    HEATER GUEST / VACANT MODE (optional) — When the house is occupied
-    the heater is set to the guest temperature (default 86 °F). After no
-    occupancy is detected for a configurable period (default 12 hours) the
-    heater drops to the vacant temperature (default 78 °F). A dashboard
-    toggle (input_boolean) lets you override manually even without
-    occupancy sensors. Leave House Occupancy Sensor blank to use manual
-    toggle only; leave both the toggle and sensor blank to disable
-    temperature management entirely.
+    HEATER OCCUPIED / VACANT MODE (optional) — Uses a dashboard toggle
+    (input_boolean) to track whether the property is occupied or vacant.
+    ON = Occupied (heater set to occupied temperature, default 86 °F).
+    OFF = Vacant (heater drops to vacant temperature, default 78 °F).
+    When a House Occupancy Sensor is configured, the toggle is flipped
+    automatically: ON when people arrive, OFF after no occupancy for a
+    configurable period (default 12 hours). You can also flip the toggle
+    manually from your dashboard at any time. Leave House Occupancy
+    Sensor blank for manual-only control; leave both the toggle and
+    sensor blank to disable temperature management entirely.
 
 
     HEATER-AWARE PUMP CONTROL — When the heater is in heat mode, the
@@ -39,8 +41,9 @@ blueprint:
     OmniLogic, a simple relay switch, or anything else in Home Assistant.
 
 
-    PREREQUISITE: If using guest/vacant temperature mode, create one
-    helper — input_boolean for Guest Mode (Settings → Helpers → Toggle).
+    PREREQUISITE: If using occupied/vacant temperature mode, create one
+    helper — input_boolean (Settings → Helpers → Toggle). Name it
+    "Pool Occupied Mode" so it is clear that ON = Occupied, OFF = Vacant.
   domain: automation
   source_url: https://github.com/cjam28/compass-pool-heater-ha/blob/main/blueprints/automation/compass_pool_heater/pool_smart_schedule.yaml
   input:
@@ -53,12 +56,13 @@ blueprint:
           domain: climate
 
     guest_mode_toggle:
-      name: Guest Mode Toggle (Optional)
+      name: Pool Occupied Mode Toggle (Optional)
       description: >
-        An input_boolean you create as a helper. It is turned on/off
-        automatically by occupancy and can also be toggled from the
-        dashboard to manually switch between guest and vacant temperatures.
-        Leave blank to disable heater temperature management.
+        An input_boolean you create as a helper (ON = Occupied,
+        OFF = Vacant). It is turned on/off automatically by occupancy
+        and can also be toggled from the dashboard to manually switch
+        between occupied and vacant heater temperatures. Leave blank
+        to disable heater temperature management.
       default: ""
       selector:
         entity:
@@ -68,10 +72,10 @@ blueprint:
       name: House Occupancy Sensor (Optional)
       description: >
         Binary sensor (or group) that indicates whether the house is
-        occupied. When it turns on, guest mode activates. Leave blank to
-        control guest/vacant mode only via the dashboard toggle, or leave
-        both this and Guest Mode Toggle blank to disable temperature
-        management entirely.
+        occupied. When it turns on, the Pool Occupied Mode toggle is
+        switched ON (occupied). Leave blank to control occupied/vacant
+        mode only via the dashboard toggle, or leave both this and the
+        toggle blank to disable temperature management entirely.
       default: ""
       selector:
         entity:
@@ -129,8 +133,8 @@ blueprint:
 
     # ── Defaults: Temperatures ──────────────────────────────────────────
     guest_temperature:
-      name: Guest Temperature (°F)
-      description: Heater setpoint when the house is occupied.
+      name: Occupied Temperature (°F)
+      description: Heater setpoint when Pool Occupied Mode is ON.
       default: 86
       selector:
         number:
@@ -142,8 +146,7 @@ blueprint:
     vacant_temperature:
       name: Vacant Temperature (°F)
       description: >
-        Heater setpoint when the house has been unoccupied for the
-        configured delay period.
+        Heater setpoint when Pool Occupied Mode is OFF (vacant).
       default: 78
       selector:
         number:
@@ -156,8 +159,8 @@ blueprint:
     vacant_delay_hours:
       name: Vacant Mode Delay (hours)
       description: >
-        Hours of no house occupancy before switching to vacant
-        temperature. Only used when House Occupancy Sensor is configured.
+        Hours of no house occupancy before the toggle is switched OFF
+        (vacant). Only used when House Occupancy Sensor is configured.
       default: 12
       selector:
         number:
@@ -303,7 +306,7 @@ trigger:
 
 action:
   - choose:
-      # ── House occupied → guest mode on ────────────────────────────────
+      # ── House occupied → toggle ON (occupied) ──────────────────────────
       - conditions:
           - condition: trigger
             id: house_occupied
@@ -316,7 +319,7 @@ action:
             target:
               entity_id: "{{ guest_toggle_eid }}"
 
-      # ── House vacant N hours → guest mode off ─────────────────────────
+      # ── House vacant N hours → toggle OFF (vacant) ─────────────────────
       - conditions:
           - condition: trigger
             id: house_vacant
@@ -328,7 +331,7 @@ action:
             target:
               entity_id: "{{ guest_toggle_eid }}"
 
-      # ── Guest mode turned on → set guest temperature ──────────────────
+      # ── Toggle switched ON → set occupied temperature ──────────────────
       - conditions:
           - condition: trigger
             id: guest_mode_on
@@ -344,7 +347,7 @@ action:
             data:
               temperature: "{{ guest_temp | int }}"
 
-      # ── Guest mode turned off → set vacant temperature ────────────────
+      # ── Toggle switched OFF → set vacant temperature ───────────────────
       - conditions:
           - condition: trigger
             id: guest_mode_off

@@ -193,23 +193,24 @@ An all-in-one blueprint for pump scheduling with optional occupancy-based speed 
 | Tier | What you configure | What you get |
 |------|--------------------|--------------|
 | **Time-only** | Pump actions + schedule times | Pump runs low overnight, default midday, off otherwise |
-| **Time + manual guest/vacant** | Add the Guest Mode Toggle | Same pump schedule plus a dashboard toggle to switch the heater between guest and vacant temperatures |
-| **Full occupancy** | Add occupancy sensors | Automatic guest/vacant switching based on house presence, and pump max speed when the pool is in use |
+| **Time + manual occupied/vacant** | Add the Pool Occupied Mode Toggle | Same pump schedule plus a dashboard toggle (ON = Occupied, OFF = Vacant) to switch between occupied and vacant heater temperatures |
+| **Full occupancy** | Add occupancy sensors | Automatic occupied/vacant switching based on house presence, and pump max speed when the pool is in use |
 
 **What it does:**
 
 1. **Pump Schedule** — runs the pump at low speed overnight and default speed midday (times are configurable)
 2. **Heater-Aware Pump Control** — at schedule boundaries, if the heater is in heat mode the pump drops to low speed instead of turning off, preventing No Flow faults
 3. **Pool Occupancy Override** *(optional)* — when the pool area is occupied, the pump switches to max speed; when guests leave, it returns to the scheduled speed
-4. **Heater Guest/Vacant Mode** *(optional)* — when the house is occupied, the heater is set to the guest temperature (default 86°F); after no occupancy for a configurable period (default 12 hours), it drops to the vacant temperature (default 78°F)
-5. **Dashboard Toggle** *(optional)* — a guest mode `input_boolean` can be toggled manually from the dashboard to override occupancy detection
+4. **Heater Occupied/Vacant Mode** *(optional)* — when the house is occupied, the heater is set to the occupied temperature (default 86°F); after no occupancy for a configurable period (default 12 hours), it drops to the vacant temperature (default 78°F)
+5. **Dashboard Toggle** *(optional)* — a Pool Occupied Mode `input_boolean` (ON = Occupied, OFF = Vacant) can be toggled manually from the dashboard to override occupancy detection
 
 #### Prerequisites
 
-If using guest/vacant temperature mode (Tier 2 or 3), create one helper:
+If using occupied/vacant temperature mode (Tier 2 or 3), create one helper:
 
 - **Settings** → **Devices & Services** → **Helpers** → **Create Helper** → **Toggle**
-- Name it `Pool Guest Mode` (entity: `input_boolean.pool_guest_mode`)
+- Name it `Pool Occupied Mode` (entity: `input_boolean.pool_occupied_mode`)
+- **ON = Occupied** (heater at occupied temperature), **OFF = Vacant** (heater at vacant temperature)
 
 For time-only mode (Tier 1), no helpers are needed.
 
@@ -219,7 +220,7 @@ For time-only mode (Tier 1), no helpers are needed.
 2. Find **Compass Pool Heater – Smart Schedule**
 3. Click **Create Automation**
 4. Configure the required inputs (Pool Heater, pump actions, schedule times)
-5. Optionally fill in Guest Mode Toggle, House Occupancy Sensor, and/or Pool Area Occupancy Sensor for additional features
+5. Optionally fill in Pool Occupied Mode Toggle, House Occupancy Sensor, and/or Pool Area Occupancy Sensor for additional features
 6. Save and enable
 
 <details>
@@ -236,15 +237,15 @@ https://github.com/cjam28/compass-pool-heater-ha/raw/main/blueprints/automation/
 | Input | Required | Description | Default |
 |-------|----------|-------------|---------|
 | Pool Heater | Yes | Compass heater climate entity | — |
-| Guest Mode Toggle | No | `input_boolean` helper for dashboard control | *(blank)* |
+| Pool Occupied Mode Toggle | No | `input_boolean` helper (ON = Occupied, OFF = Vacant) | *(blank)* |
 | House Occupancy Sensor | No | Binary sensor or group for house occupancy | *(blank)* |
 | Pool Area Occupancy Sensor | No | Binary sensor or group for pool area | *(blank)* |
 | Pump Low Speed Action | Yes | Action(s) to set pump to low speed | — |
 | Pump Default Speed Action | Yes | Action(s) to set pump to default speed | — |
 | Pump Max Speed Action | No | Action(s) to set pump to max speed (only with pool occupancy) | *(none)* |
 | Pump Off Action | Yes | Action(s) to turn pump off | — |
-| Guest Temperature | — | Heater setpoint when house is occupied | 86°F |
-| Vacant Temperature | — | Heater setpoint when house is vacant | 78°F |
+| Occupied Temperature | — | Heater setpoint when toggle is ON (occupied) | 86°F |
+| Vacant Temperature | — | Heater setpoint when toggle is OFF (vacant) | 78°F |
 | Vacant Mode Delay | — | Hours of no occupancy before switching to vacant temp | 12 |
 | Pool Cooldown | — | Minutes after pool area clears before dropping from max speed | 5 |
 | Night Pump Start | — | Overnight low-speed filtration start time | 10:00 PM |
@@ -261,13 +262,13 @@ https://github.com/cjam28/compass-pool-heater-ha/raw/main/blueprints/automation/
 | Pump Default Speed Action | Service `switch.turn_on` on `switch.pool_pump` |
 | Pump Off Action | Service `switch.turn_off` on `switch.pool_pump` |
 
-Leave Guest Mode Toggle, House Occupancy Sensor, Pool Area Occupancy Sensor, and Pump Max Speed Action blank.
+Leave Pool Occupied Mode Toggle, House Occupancy Sensor, Pool Area Occupancy Sensor, and Pump Max Speed Action blank.
 
 #### Example: njsPC-HA (Multi-Speed Pump with Occupancy)
 
 | Input | Value |
 |-------|-------|
-| Guest Mode Toggle | `input_boolean.pool_guest_mode` |
+| Pool Occupied Mode Toggle | `input_boolean.pool_occupied_mode` |
 | House Occupancy Sensor | `binary_sensor.house_occupancy` |
 | Pool Area Occupancy Sensor | `binary_sensor.pool_area_motion` |
 | Pump Low Speed Action | `script.pump_set_speed_exclusive` with data `target: low` |
