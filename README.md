@@ -247,6 +247,8 @@ https://github.com/cjam28/compass-pool-heater-ha/raw/main/blueprints/automation/
 | Occupied Temperature | — | Heater setpoint when toggle is ON (occupied) | 86°F |
 | Vacant Temperature | — | Heater setpoint when toggle is OFF (vacant) | 78°F |
 | Vacant Mode Delay | — | Hours of no occupancy before switching to vacant temp | 12 |
+| House Occupied Debounce | — | Seconds house sensor must stay on before toggling to occupied | 30s |
+| Pool Occupied Debounce | — | Seconds pool sensor must stay on before switching to max speed | 30s |
 | Pool Cooldown | — | Minutes after pool area clears before dropping from max speed | 5 |
 | Night Pump Start | — | Overnight low-speed filtration start time | 10:00 PM |
 | Night Pump End | — | Overnight filtration end time | 6:00 AM |

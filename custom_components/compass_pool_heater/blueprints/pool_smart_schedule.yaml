@@ -169,21 +169,37 @@ blueprint:
           step: 1
           unit_of_measurement: hours
 
-    pool_occupied_minutes:
-      name: Pool Occupied Debounce (minutes)
+    house_occupied_seconds:
+      name: House Occupied Debounce (seconds)
       description: >
-        Minutes the pool area sensor must stay on continuously before
+        Seconds the house occupancy sensor must stay on continuously
+        before the occupied mode toggle is switched ON. Prevents false
+        triggers from brief sensor flickers (HVAC activity, pets, etc.).
+        Set to 0 for instant response. Only used when House Occupancy
+        Sensor is configured.
+      default: 30
+      selector:
+        number:
+          min: 0
+          max: 600
+          step: 5
+          unit_of_measurement: seconds
+
+    pool_occupied_seconds:
+      name: Pool Occupied Debounce (seconds)
+      description: >
+        Seconds the pool area sensor must stay on continuously before
         the pump switches to max speed. Prevents false triggers from
         noisy sensors (wind, insects, reflections). Set to 0 for
         instant response. Only used when Pool Area Occupancy Sensor
         is configured.
-      default: 2
+      default: 30
       selector:
         number:
           min: 0
-          max: 15
-          step: 1
-          unit_of_measurement: minutes
+          max: 900
+          step: 5
+          unit_of_measurement: seconds
 
     pool_cooldown_minutes:
       name: Pool Cooldown (minutes)
@@ -254,6 +270,8 @@ trigger:
   - platform: template
     value_template: >-
       {{ house_occ_var not in ['', none] and is_state(house_occ_var, 'on') }}
+    for:
+      seconds: !input house_occupied_seconds
     id: house_occupied
 
   - platform: template
@@ -277,7 +295,7 @@ trigger:
     value_template: >-
       {{ pool_occ_var not in ['', none] and is_state(pool_occ_var, 'on') }}
     for:
-      minutes: !input pool_occupied_minutes
+      seconds: !input pool_occupied_seconds
     id: pool_occupied
 
   - platform: template
