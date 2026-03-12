@@ -354,6 +354,9 @@ action:
           - condition: trigger
             id: guest_mode_on
         sequence:
+          - condition: template
+            value_template: >-
+              {{ (now() - states[guest_toggle_eid].last_changed).total_seconds() < 60 }}
           - action: climate.set_hvac_mode
             target:
               entity_id: !input heater_climate
@@ -370,6 +373,9 @@ action:
           - condition: trigger
             id: guest_mode_off
         sequence:
+          - condition: template
+            value_template: >-
+              {{ (now() - states[guest_toggle_eid].last_changed).total_seconds() < 60 }}
           - action: climate.set_temperature
             target:
               entity_id: !input heater_climate
